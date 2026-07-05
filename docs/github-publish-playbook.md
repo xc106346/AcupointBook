@@ -32,14 +32,14 @@ git push origin --tags
 
 ## 已知坑：ghproxy 代理
 
-全局 `~/.gitconfig` 中存在规则：
+历史背景：原 `~/.gitconfig` 有过代理规则
 
 ```ini
 [url "https://ghproxy.com/https://github.com/"]
-    insteadof = https://github.com/
+    insteadOf = https://github.com/
 ```
 
-**问题**：`ghproxy.com` 不稳定，连不上时所有 `git push`/`ls-remote` 全部失败。
+**问题**：`ghproxy.com` 不稳定（2026-07-05 已不可达），连不上时所有 `git push`/`ls-remote` 全部失败。
 
 **症状**：
 ```
@@ -47,25 +47,32 @@ fatal: unable to access 'https://ghproxy.com/https://github.com/...':
 Failed to connect to ghproxy.com port 443
 ```
 
-**临时绕过方案**（推送完成后务必恢复）：
+### 当前状态（2026-07-05 之后）
 
-```powershell
-# 备份 + 禁用
-Copy-Item $env:USERPROFILE\.gitconfig $env:USERPROFILE\.gitconfig.bak -Force
-git config --global --unset url.https://ghproxy.com/https://github.com/.insteadof
+- 原代理规则已删除
+- 当前全局 `~/.gitconfig` 留有一条无害的反向 rule：
 
-# 推送
-git push -u origin master
-git push origin --tags
-
-# 恢复
-Move-Item $env:USERPROFILE\.gitconfig.bak $env:USERPROFILE\.gitconfig -Force
+```ini
+[url "https://github.com/"]
+    insteadOf = https://ghproxy.com/https://github.com/
 ```
 
-**更稳的方案**：当 `ghproxy.com` 持续不可用时，可以反向加一条规则强制直连：
+这条规则只在 URL 含 `https://ghproxy.com/https://github.com/` 前缀时才生效，平时不影响直连 GitHub。
+
+### 临时推送方案（当任何代理规则导致 push 卡住时）
 
 ```powershell
-git config --global --add url."https://github.com/".insteadOf "https://ghproxy.com/https://github.com/"
+# 1. 列出所有 url.* rules
+git config --list --global | Select-String "insteadof"
+
+# 2. 删除卡住的那条
+git config --global --unset-all url."https://ghproxy.com/https://github.com/".insteadof
+
+# 3. 推送
+git push origin master
+git push origin --tags
+
+# 4. 如果需要恢复，参考上面的"当前状态"section重建
 ```
 
 ## 验证清单
